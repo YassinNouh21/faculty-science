@@ -8,12 +8,51 @@ import plotly.express as px
 import pandas as pd
 
 # API endpoint
-API_BASE_URL = "http://209.38.216.189:8000/api/statistics"  # Replace with your actual API endpoint
+API_BASE_URL = "http://209.38.216.189:8000/api"
 
 
 def fetch_data(endpoint):
     response = requests.get(f"{API_BASE_URL}{endpoint}")
     return response.json() if response.status_code == 200 else None
+
+def fetch_professor_data(professor_id):
+    query = """
+    query ($id: Int!) {
+      professor(professorId: $id) {
+        name
+        affiliation
+        hindex
+        totalCitations
+        publications {
+          title
+          year
+          numCitations
+        }
+      }
+    }
+    """
+    variables = {'id': professor_id}
+    response = requests.post(f"{API_BASE_URL}/graphql", json={'query': query, 'variables': variables})
+    if response.status_code == 200:
+        return response.json()['data']['professor']
+    else:
+        return None
+
+
+def fetch_all_professors():
+    query = """
+    query {
+      allProfessors {
+        id
+        name
+      }
+    }
+    """
+    response = requests.post(f"{API_BASE_URL}/graphql", json={'query': query})
+    if response.status_code == 200:
+        return response.json()['data']['allProfessors']
+    else:
+        return None
 
 
 def main():
@@ -26,8 +65,8 @@ def main():
     st.header("Overview")
 
     # Fetch data
-    data_size_stats = fetch_data("/data_size_stats")
-    data_coverage_stats = fetch_data("/data_coverage_stats")
+    data_size_stats = fetch_data("/statistics/data_size_stats")
+    data_coverage_stats = fetch_data("/statistics/data_coverage_stats")
 
     if data_size_stats and data_coverage_stats:
         # Create three columns for key metrics
@@ -146,6 +185,48 @@ def main():
         else:
             st.error("Failed to fetch public access ratio data.")
 
+    all_professors = fetch_all_professors()
+
+    if all_professors:
+        # Create a dropdown to select a professor
+        selected_professor = st.selectbox(
+            "Select a Professor",
+            options=all_professors,
+            format_func=lambda x: x['name']
+        )
+
+        if selected_professor:
+            # Fetch and display the selected professor's data
+            professor_data = fetch_professor_data(selected_professor['id'])
+
+            if professor_data:
+                st.header(f"Professor: {professor_data['name']}")
+                st.write(f"Affiliation: {professor_data['affiliation']}")
+                st.write(f"H-index: {professor_data['hindex']}")
+                st.write(f"Total Citations: {professor_data['totalCitations']}")
+
+                # Display publications
+                st.subheader("Top Publications")
+                publications_df = pd.DataFrame(professor_data['publications'])
+                st.table(publications_df)
+
+                # Visualize citations per publication
+                fig = px.bar(publications_df, x='title', y='numCitations',
+                             title='Citations per Publication',
+                             labels={'title': 'Publication Title', 'numCitations': 'Number of Citations'})
+                fig.update_layout(xaxis_tickangle=-45)
+                st.plotly_chart(fig)
+
+                # Visualize publications over time
+                pub_by_year = publications_df.groupby('year').size().reset_index(name='count')
+                fig = px.line(pub_by_year, x='year', y='count',
+                              title='Publications Over Time',
+                              labels={'year': 'Year', 'count': 'Number of Publications'})
+                st.plotly_chart(fig)
+            else:
+                st.error("Failed to fetch professor data.")
+    else:
+        st.error("Failed to fetch the list of professors.")
 
 if __name__ == "__main__":
     main()
