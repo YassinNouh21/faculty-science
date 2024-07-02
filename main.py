@@ -15,6 +15,10 @@ def fetch_data(endpoint):
     response = requests.get(f"{API_BASE_URL}{endpoint}")
     return response.json() if response.status_code == 200 else None
 
+
+st.set_page_config(page_title="Research Data Insights Dashboard", layout="wide")
+
+
 def fetch_professor_data(professor_id):
     query = """
     query ($id: Int!) {
@@ -23,6 +27,7 @@ def fetch_professor_data(professor_id):
         affiliation
         hindex
         totalCitations
+        scholarId
         publications {
           title
           year
@@ -45,6 +50,7 @@ def fetch_all_professors():
       allProfessors {
         id
         name
+        scholarId
       }
     }
     """
@@ -57,7 +63,18 @@ def fetch_all_professors():
 
 def main():
     # Header
-    st.set_page_config(page_title="Research Data Insights Dashboard", layout="wide")
+    nav_option = st.sidebar.radio(
+        "Navigate to:",
+        ("Chat Bot", "Research Insights")
+    )
+
+    if nav_option == "Research Insights":
+        show_research_insights()
+    elif nav_option == "Chat Bot":
+        show_chat_bot()
+
+
+def show_research_insights():
     st.title("Research Data Insights Dashboard")
     st.markdown("Explore comprehensive insights into academic research trends and impact.")
 
@@ -198,7 +215,7 @@ def main():
         if selected_professor:
             # Fetch and display the selected professor's data
             professor_data = fetch_professor_data(selected_professor['id'])
-
+            print(f'all the data {professor_data} ||  {selected_professor["id"]}')
             if professor_data:
                 st.header(f"Professor: {professor_data['name']}")
                 st.write(f"Affiliation: {professor_data['affiliation']}")
@@ -227,6 +244,86 @@ def main():
                 st.error("Failed to fetch professor data.")
     else:
         st.error("Failed to fetch the list of professors.")
+
+
+def chat_with_professor(professor_id, message):
+    url = f"{API_BASE_URL}/chat/{professor_id}"
+    headers = {
+        "Content-Type": "application/json",
+    }
+    data = {"question": message}
+
+    try:
+        response = requests.post(url, headers=headers, json=data, stream=True)
+        response.raise_for_status()
+        return response.json()['answer']
+    except requests.RequestException as e:
+        return f"An error occurred: {str(e)}"
+
+
+def show_chat_bot():
+    st.header("Professor Chat Assistant")
+    st.write("Chat with an AI assistant about specific professors and their research.")
+
+    # Fetch the list of professors
+    all_professors = fetch_all_professors()
+    if not all_professors:
+        st.error("Failed to fetch the list of professors.")
+        return
+
+    # Professor selection
+    selected_professor = st.selectbox(
+        "Select a Professor to chat about:",
+        options=all_professors,
+        format_func=lambda x: x['name']
+    )
+
+    # Initialize chat history
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    # Display chat history
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    # Accept user input
+    if prompt := st.chat_input(f"Ask about {selected_professor['name']}'s research:"):
+        # Add user message to chat history
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        # Display user message in chat message container
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        # Generate assistant response with loading spinner
+        with st.spinner('Generating response...'):
+            response = chat_with_professor(selected_professor['scholarId'], prompt)
+
+        # Add assistant response to chat history
+        st.session_state.messages.append({"role": "assistant", "content": response})
+        # Display assistant response in chat message container
+        with st.chat_message("assistant"):
+            st.markdown(response)
+
+    # Add a button to clear chat history
+    if st.button("Clear Chat History"):
+        st.session_state.messages = []
+        st.experimental_rerun()
+
+    # Display some example questions
+    st.sidebar.header("Example Questions")
+    example_questions = [
+        f"What are {selected_professor['name']}'s main research areas?",
+        f"What is {selected_professor['name']}'s h-index?",
+        f"What is {selected_professor['name']}'s most cited paper?",
+        f"How many publications does {selected_professor['name']} have?",
+        f"What is {selected_professor['name']}'s current research focus?"
+    ]
+    for question in example_questions:
+        if st.sidebar.button(question):
+            # Add the example question to the chat input
+            st.session_state.messages.append({"role": "user", "content": question})
+            st.experimental_rerun()
 
 if __name__ == "__main__":
     main()

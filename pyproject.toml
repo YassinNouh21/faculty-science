@@ -13,6 +13,7 @@ dependencies = [
     "pandas>=2.2.2",
     "versioneer>=0.29",
     "orjson>=3.10.5",
+    "sseclient-py>=1.8.0",
 ]
 requires-python = ">=3.11"
 readme = "README.md"
