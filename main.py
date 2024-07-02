@@ -63,6 +63,12 @@ def fetch_all_professors():
 
 def main():
     # Header
+    # Add a title at the top of the sidebar
+    st.sidebar.title("ScholarSync")
+
+    # Add a horizontal line for visual separation
+    st.sidebar.markdown("---")
+
     nav_option = st.sidebar.radio(
         "Navigate to:",
         ("Chat Bot", "Research Insights")
@@ -75,6 +81,7 @@ def main():
 
 
 def show_research_insights():
+    st.title("This was developed by ScholarSync")
     st.title("Research Data Insights Dashboard")
     st.markdown("Explore comprehensive insights into academic research trends and impact.")
 
@@ -262,7 +269,7 @@ def chat_with_professor(professor_id, message):
 
 
 def show_chat_bot():
-    st.header("Professor Chat Assistant")
+    st.title("This was developed by ScholarSync")
     st.write("Chat with an AI assistant about specific professors and their research.")
 
     # Fetch the list of professors
